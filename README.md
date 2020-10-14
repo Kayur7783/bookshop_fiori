@@ -34,7 +34,7 @@ File or Folder | Purpose
 9. Build & Deploy
 
 
- Step 1. Create a CAP project
+## Step 1. Create a CAP project
 
  1.1 Generate a new CAP project.
 
@@ -140,6 +140,522 @@ File or Folder | Purpose
 1.7. Execute cds watch and see the Fiori preview for Books
 
 
+## Step 2. Add OData v2 proxy
 
-          
+  As we are going to use Fiori Tools, the OData service needs to be adapted to v2 (Fiori tools currently do not fully support OData v4).
+  For this, we use @sap/cds-odata-v2-adapter-proxy
+
+ 2.1. install @sap/cds-odata-v2-adapter-proxy to your project.
+
+     npm install @sap/cds-odata-v2-adapter-proxy -s
+     
+ 2.2. Create srv/server.js
+ 
+     "use strict";
+
+     const cds = require("@sap/cds");
+     const proxy = require("@sap/cds-odata-v2-adapter-proxy");
+
+     cds.on("bootstrap", app => app.use(proxy()));
+
+     module.exports = cds.server;
+     
+     
+## Step 3. Add UI module using Fiori tools
+
+   let’s add UI module using Fiori tools.
+   
+  3.1. Generate Fiori Project
+  
+   1. Press Ctrl + Shift + P and launch Application Generator.
+
+   2. Select SAP Fiori elements application.
+
+   3. Select List Report Object Page
+
+   4. Select Connect to an OData Source as Data source, and specify your local CAP OData URL:  http://localhost:4004/v2/catalog/  click next
+
+   5. Select “Books” as Main Entity and click next
+
+   6. Type below information.
+
+   
+      Module Name|bookshopapp
+      ---------|----------
+      Title|Bookshop App
+      Namespace|demo
+      Description|Bookshop App
+      Project Folder|Your CAP project’s root folder
+      
+      
+   Once you press Finish, Fiori elements app will be generated.
+   
+   
+  7. Move to bookshopapp folder you’ve just created and run the app
+  
+    npm start
+    
+  3.2. Make adjustments for Cloud Foundry
+ 
+   We have to make some adjustments so that this Fiori app can be deployed as part of MTA.
+
+ 
+
+       1. Create bookshopapp/webapp/xs-app.json.
+
+       {
+           "welcomeFile": "flpSandbox.html",
+           "routes": [{
+             "source": "^(.*)",
+             "target": "$1",
+             "authenticationType": "xsuaa",
+             "service": "html5-apps-repo-rt"
+           }]
+         }
+
+
+       2. Add ui5-task-zipper as devDependencies to bookshopapp module.
+
+       npm install ui5-task-zipper --save-dev
+
+
+       3. Configure bookshopapp/package.json.
+
+       Add ui5-task-zipper to ui5>dependencies.
+
+        "ui5": {
+         "dependencies": [
+          "@sap/ux-ui5-tooling",
+          "ui5-task-zipper"
+         ]
+        }
+
+
+       4. Replace bookshopapp/ui5.yaml with the following code. What I’ve done are:
+
+       Remove “ui5Theme”
+       Add resources section
+       Add builder section
+       Resulting bookshopapp/ui5.yaml will look like below.
+
+       specVersion: '1.0'
+       metadata:
+         name: 'bookshopapp'
+       type: application
+       resources:
+         configuration:
+           paths:
+             webapp: webapp
+       server:
+         ...
+       builder:
+         customTasks:
+           - name: "ui5-task-zipper"
+             afterTask: "uglify"
+             configuration:
+               archiveName: "uimodule"
+               additionalFiles:
+                 - webapp/xs-app.json  
+
+
+3.3. Add Configuration for Launchpad
+ 
+
+   1. Add crossNavigation settings to bookshopapp/webapp/manifest.json
+
+   This configuration is necessary for executing the app from Fiori Launchpad.
+
+         "sap.app": {
+             "id": "demo.bookshopapp",
+             "type": "application",
+             "i18n": "i18n/i18n.properties",
+             "applicationVersion": {
+                 "version": "1.0.0"
+             },
+             "title": "{{appTitle}}",
+             "description": "{{appDescription}}",
+       "crossNavigation": {
+        "inbounds": {
+         "intent1": {
+          "signature": {
+           "parameters": {},
+           "additionalParameters": "allowed"
+          },
+          "semanticObject": "data",
+          "action": "display",
+          "title": "{{appTitle}}",
+          "icon": "sap-icon://search"
+         }
+        }
+       }, 
+ 
+
+## Step 4. Add Approuter
+ 
+  We are adding Approuter module to route incoming requests and authenticate users.
+
+ 
+4.1. Create approuter folder at the project root and add package.json inside it.
+
+     {
+       "name": "bookshop-approuter",
+       "version": "0.0.1",
+       "engines": {
+         "node": "12.x.x"
+       },
+       "scripts": {
+         "start": "node node_modules/@sap/approuter/approuter.js"
+       },
+       "dependencies": {
+         "@sap/approuter": "^7.1.0"
+       }
+     }
+ 
+
+4.2. Add approuter/xs-app.json.
+
+Approuter redirects requests containing path /v2/catalog to srv-api destination, which will be defined later in mta.yaml.
+At this point, authenticationType is “none”, because we don’t restrict access to the CAP service.
+If you require only users with certain authorization to access the service, you would set authenticationType as “xsuaa”.
+
+     {
+         "welcomeFile": "/cp.portal",
+         "authenticationMethod": "route",
+         "logout": {
+           "logoutEndpoint": "/do/logout"
+         },
+         "routes": [
+             {
+                 "source": "^/v2/catalog/(.*)$",
+                 "authenticationType": "none",
+                 "destination": "srv-api",
+                 "csrfProtection": false
+             }
+          ]
+       }
+ 
+
+## Step 5. Add Deployer
+ 
+
+Deployer module will upload html5 app to HTML5 Application Repository.
+
+ 
+
+5.1. Create deployer folder at the project root and add package.json inside it.
+
+     {
+         "name": "bookshop-deployer",
+         "engines": {
+             "node": "12.x.x"
+         },
+         "dependencies": {
+             "@sap/html5-app-deployer": "2.1.0"
+         },
+         "scripts": {
+             "start": "node node_modules/@sap/html5-app-deployer/index.js"
+         }
+     }
+
+
+## Step 6. Add Launchpad module
+ 
+
+This module is necessary for the app to be able to run in CF Launchpad.
+
+ 
+
+6.1. Create launchpad folder at the project root and add package.json inside it.
+
+        {
+            "name": "launchpad-site-content",
+            "description": "Portal site content deployer package",
+            "engines": {
+              "node": "12.X"
+            },
+            "dependencies": {
+              "@sap/portal-cf-content-deployer": "3.32.0-20200312112659"
+            },
+            "scripts": {
+              "start": "node node_modules/@sap/portal-cf-content-deployer/src/index.js"
+            }
+          }
+ 
+
+6.2. Add launchpad/portal-site/CommonDataModel.json. 
+
+Here, you configure Launchpad Tile and Group.
+
+        {
+         "_version": "3.0.0",
+         "identification": {
+           "id": "c9aae627-9601-4a11-83c3-41b94a3c8026-1576776549699",
+           "entityType": "bundle"
+         },
+         "payload": {
+           "catalogs": [
+          {
+            "_version": "3.0.0",
+            "identification": {
+           "id": "defaultCatalogId",
+           "title": "{{catalogTitle}}",
+           "entityType": "catalog",
+           "i18n": "i18n/i18n.properties"
+            },
+            "payload": {
+           "viz": [
+             {
+            "id": "demo.bookshopapp",
+            "vizId": "data-display"
+             }
+           ]
+            }
+          }
+           ],
+           "groups": [{
+                "_version": "3.0.0",
+                "identification": {
+                  "id": "defaultGroupId",
+                  "title": "{{groupTitle}}",
+                  "entityType": "group",
+                  "i18n": "i18n/i18n.properties"
+                },
+                "payload": {
+                  "viz": [
+                    {
+                      "id": "demo.bookshopapp-1",
+             "appId": "demo.bookshopapp",
+             "vizId": "data-display"
+                    }
+                  ]
+                }
+              }],
+          }
+ 
+
+6.3. Add launchpad/portal-site/i18n/i18n.properties.
+
+      catalogTitle=Default Catalog
+      groupTitle=Default Group
+ 
+
+## Step 7. Add XSUAA configuration
+ 
+
+We have specified in bookshopapp/webapp/xs-app.json that HTML5 Application Repository requires user authentication as below, so we need XSUAA service instance bound to Approuter.
+
+    "authenticationType": "xsuaa"
+ 
+
+7.1. Add xs-security.json to the project’s root.
+
+      {
+        "xsappname": "bookshop",
+        "tenant-mode": "dedicated",
+        "scopes": [
+          {
+            "name": "uaa.user",
+            "description": "UAA"
+          }
+        ],
+        "role-templates": [
+          {
+            "name": "Token_Exchange",
+            "description": "UAA",
+            "scope-references": [
+              "uaa.user"
+            ]
+          }
+        ]
+      }
+
+
+## Step 8. Generate mta.yaml
+ 
+
+This is the final step before deploy. We are connecting everything together in mta.yaml.
+
+ 
+
+8.1. Add below configuration to package.json, which is at the project root.
+
+It indicates that HANA DB will be used in production, while SQLite DB will be used for development.
+
+        "cds": {
+            "requires": {
+                "db": {
+                    "kind": "hana"
+                }
+            }
+        }
+
+
+8.2. Generate mta.yaml.
+
+     cds add mta
+     
+Next,  we need to make some changes to mta.yaml.
+
+ 
+
+8.3. Modify bookshop-db resource
+
+As I’m using trial account, I need to change the parameter “service” from hana to hanatrial.
+
+    # ------------------------------------------------------------
+     - name: bookshop-db
+    # ------------------------------------------------------------
+       type: com.sap.xs.hdi-container
+       parameters:
+         service: hanatrial
+         service-plan: hdi-shared
+       properties:
+         hdi-service-name: ${service-name}
+ 
+
+8.4. Add Approuter module.
+
+     - name: bookshop-app-router
+       type: approuter.nodejs
+       path: approuter
+       parameters:
+         disk-quota: 512M
+         memory: 512M
+       requires:
+         - name: bookshop_uaa
+         - name: bookshop_html5_repo_runtime
+         - name: bookshop_portal
+         - name: srv-api
+           group: destinations
+           properties:
+             name: srv-api
+             url: "~{srv-url}"
+             forwardAuthToken: true  
+ 
+
+8.5. Add UI and Deployer modules.
+
+     - name: bookshop_ui_deployer
+       type: com.sap.application.content
+       path: deployer
+       requires:
+         - name: bookshop_html5_repo_host
+           parameters:
+             content-target: true
+       build-parameters:
+         build-result: resources
+         requires:
+           - name: bookshopapp
+             artifacts:
+               - dist/uimodule.zip
+             target-path: resources/
+     - name: bookshopapp
+       type: html5
+       path: bookshopapp
+       build-parameters:
+         builder: custom
+         commands:
+           - npm install
+           - npm run build
+         supported-platforms: []
+ 
+
+8.6. Add Launchpad deployer module.
+
+     - name: bookshop_launchpad_deployer
+       type: com.sap.portal.content
+       path: launchpad
+       deployed-after:
+         - bookshop_ui_deployer
+       requires:
+         - name: bookshop_portal
+         - name: bookshop_html5_repo_host
+         - name: bookshop_uaa   
+
+
+8.7. Add the following resources.
+
+      - name: bookshop_uaa
+        type: org.cloudfoundry.managed-service
+        parameters:
+          path: ./xs-security.json
+          service-plan: application
+          service: xsuaa
+      - name: bookshop_html5_repo_runtime
+        type: org.cloudfoundry.managed-service
+        parameters:
+          service-plan: app-runtime
+          service: html5-apps-repo
+      - name: bookshop_html5_repo_host
+        type: org.cloudfoundry.managed-service
+        parameters:
+          service-plan: app-host
+          service: html5-apps-repo
+          config:
+            sizeLimit: 1
+      - name: bookshop_portal
+        type: org.cloudfoundry.managed-service
+        parameters:
+          service-plan: standard
+          service: portal
+
+
+In the end, mta.yaml will look like this.
+
+ 
+
+8.8. After you’ve generated mta.yaml, add cds configuration for local development.
+
+       "cds": {
+         "requires": {
+           "db": {
+             "kind": "hana"
+           }
+         },
+         "[development]": {
+           "requires": {
+             "db": {
+               "kind": "sql"
+             }
+           }
+         }
+       }
+ 
+
+## Step 9. Build & Deploy
+ 
+
+Finally, we deploy the MTA project to Cloud Foundry.
+
+ 
+
+9.1. Run below command to build the project.
+
+    mbt build
+
+
+If you get any error, check the below dependencies in package.json file. If its not there,
+
+    npm install
+
+
+Below is package.json after upgrade.
+
+    "dependencies": {
+        "@sap/cds": "^4",
+        "@sap/cds-odata-v2-adapter-proxy": "^1.4.43",
+        "express": "^4",
+        "@sap/hana-client": "^2.4.177"
+    }
+ 
+
+9.2. Run below command to deploy the project to Cloud Foundry.
+
+Make sure you have logged in to the target CF subaccount.
+
+    cf deploy mta_archives/bookshop_1.0.0.mtar
+ 
+
+If everything goes well, you’ll see bookshop-app-router running in your space.
+       
  

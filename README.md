@@ -7,9 +7,9 @@ It contains these folders and files, following our recommended project layout:
 File or Folder | Purpose
 ---------|----------
 `bookshopapp/` | content for UI frontends goes here
-`approuter`|Handles the incoming UI Requests
-`deployer`|deploys the UI app
-`launchpad`|Create Fiori Launch pad
+`approuter/`|Handles the incoming UI Requests
+`deployer/`|deploys the UI app
+`launchpad/`|Create Fiori Launch pad
 `db/` | your domain models and data go here
 `srv/` | your service models and code go here
 `package.json` | project metadata and configuration

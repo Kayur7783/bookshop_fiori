@@ -661,4 +661,69 @@ Make sure you have logged in to the target CF subaccount.
 
 If everything goes well, you’ll see bookshop-app-router running in your space.
        
- 
+
+## Authentication
+
+  1. Mocked Authentication
+  2. Token-Based Authentication using XSUAA
+
+
+Mocked authentication is used only in development mode for Development purpose. This is not recommended for productive use
+
+1. Mocked Authentication:
+
+1.1 Add mocked authentication user in the config file .cdsrc.json
+
+              {
+          "auth": {
+           "passport": {
+            "strategy": "mock",
+            "users": {
+             "jhodel": {
+              "password": "1234",
+              "ID": "jhodel",
+              "roles": [
+               "authenticated-user"
+              ]
+             }
+            }
+           }
+          }
+         }
+
+
+  1.2 Add @requires : 'authenticated-user' to Service in Cat-service.cds file
+  
+        @requires : 'authenticated-user'
+        service CatalogService {
+            entity Books as projection on my.Books
+            entity Autors as projection on my.Authors
+        }
+        
+        
+   1.3. Install the node module passport:
+   
+       npm install passport
+       
+   1.4. Make the below changes in package.json
+   
+          "cds": {
+           "requires": {
+            "db": {
+             "kind": "sql"
+            }
+           }
+         }
+         
+         
+         
+    1.5. Test the mocked authentication by starting the service using cds watch
+    
+    
+  
+    
+  2 Token-Based Authentication using XSUAA
+  
+    We have already setup XSUAA this application and look for mta.yaml file to understand how its bounded.
+
+

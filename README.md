@@ -303,9 +303,6 @@ File or Folder | Purpose
      {
        "name": "bookshop-approuter",
        "version": "0.0.1",
-       "engines": {
-         "node": "12.x.x"
-       },
        "scripts": {
          "start": "node node_modules/@sap/approuter/approuter.js"
        },
@@ -349,9 +346,6 @@ Deployer module will upload html5 app to HTML5 Application Repository.
 
      {
          "name": "bookshop-deployer",
-         "engines": {
-             "node": "12.x.x"
-         },
          "dependencies": {
              "@sap/html5-app-deployer": "2.1.0"
          },
@@ -373,9 +367,6 @@ This module is necessary for the app to be able to run in CF Launchpad.
         {
             "name": "launchpad-site-content",
             "description": "Portal site content deployer package",
-            "engines": {
-              "node": "12.X"
-            },
             "dependencies": {
               "@sap/portal-cf-content-deployer": "3.32.0-20200312112659"
             },
@@ -646,7 +637,7 @@ Below is package.json after upgrade.
 
     "dependencies": {
         "@sap/cds": "^4",
-        "@sap/cds-odata-v2-adapter-proxy": "^1.4.43",
+        "@sap/cds-odata-v2-adapter-proxy": "^1.5.10",
         "express": "^4",
         "@sap/hana-client": "^2.4.177"
     }
